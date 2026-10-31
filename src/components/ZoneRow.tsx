@@ -1,4 +1,4 @@
-import { describeZone } from "../timezones";
+import { describeZone } from "../utils/timezones";
 
 type ZoneRowProps = {
     zone: string;
@@ -14,8 +14,11 @@ export default function ZoneRow({ zone, now, isDefault, onRemove }: ZoneRowProps
         <div className="zone-row">
             <div className="zone-main">
                 <div>
-                    <div className="zone-city">{info.city}</div>
-                    <div className="zone-name">{info.longName}</div>
+                    <div className="zone-city" title={info.city}>{info.title}</div>
+                    <div className="zone-name">
+                        {info.flagUrl && <img className="flag" src={info.flagUrl} alt={info.longName} />}
+                        {info.longName}
+                    </div>
                 </div>
                 <div className="zone-right">
                     <div className="zone-time">{info.time}</div>

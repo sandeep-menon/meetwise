@@ -90,3 +90,92 @@ export function buildSearchEntries(moment: Date): SearchEntry[] {
         };
     }).sort((a, b) => a.country.localeCompare(b.country) || a.city.localeCompare(b.city));
 }
+
+export const STEP_MINUTES = 15;
+const MINUTE = 60_000;
+
+export function roundToStep(moment: Date): Date {
+    const step = STEP_MINUTES * MINUTE;
+    return new Date(Math.round(moment.getTime() / step) * step);
+}
+
+const knownZones = new Set<string>(ALL_ZONES);
+
+export function isKnownZone(zone: string): boolean {
+    return knownZones.has(zone);
+}
+
+const wallClockFormats = new Map<string, Intl.DateTimeFormat>();
+
+// The calendar date and clock time a zone shows at a given instant.
+function wallClock(zone: string, instant: number) {
+    let format = wallClockFormats.get(zone);
+    if (!format) {
+        format = new Intl.DateTimeFormat("en-US", {
+            timeZone: zone,
+            hourCycle: "h23",
+            year: "numeric",
+            month: "numeric",
+            day: "numeric",
+            hour: "numeric",
+            minute: "numeric",
+        });
+        wallClockFormats.set(zone, format);
+    }
+    const parts = Object.fromEntries(format.formatToParts(instant).map((part) => [part.type, part.value]));
+    return {
+        year: Number(parts.year),
+        month: Number(parts.month),
+        day: Number(parts.day),
+        hour: Number(parts.hour),
+        minute: Number(parts.minute),
+    };
+}
+
+function offsetMinutes(zone: string, instant: number): number {
+    const wall = wallClock(zone, instant);
+    const wallAsUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute);
+    return Math.round((wallAsUtc - Math.floor(instant / MINUTE) * MINUTE) / MINUTE);
+}
+
+// The instant at which a zone's clock reads the given date and hour. The second pass corrects
+// for a DST change between the guess and the answer. Date.UTC rolls day overflow into the next month.
+function zoneInstant(zone: string, year: number, month: number, day: number, hour: number): number {
+    const guess = Date.UTC(year, month - 1, day, hour);
+    const first = guess - offsetMinutes(zone, guess) * MINUTE;
+    return guess - offsetMinutes(zone, first) * MINUTE;
+}
+
+export function hourLabel(hour: number): string {
+    return `${hour % 12 === 0 ? 12 : hour % 12}${hour < 12 ? "am" : "pm"}`;
+}
+
+const NIGHT = "#3f6895";
+const DAY = "#e8d39a";
+
+export type DayTrack = {
+    start: number;
+    maxMinutes: number;
+    hours: { hour: number; percent: number }[];
+    gradient: string;
+};
+
+// The slider track for the zone's calendar day containing `moment`, built from real instants,
+// so a 23- or 25-hour DST changeover day is drawn correctly.
+export function dayTrack(zone: string, moment: Date): DayTrack {
+    const { year, month, day } = wallClock(zone, moment.getTime());
+    const start = zoneInstant(zone, year, month, day, 0);
+    const end = zoneInstant(zone, year, month, day + 1, 0);
+    // The last step is the day's final 15 minutes, so the slider never reaches the next midnight.
+    const maxMinutes = (end - start) / MINUTE - STEP_MINUTES;
+    const percent = (instant: number) => ((instant - start) / MINUTE / maxMinutes) * 100;
+
+    const hours = Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        percent: percent(zoneInstant(zone, year, month, day, hour)),
+    }));
+    const at = (hour: number) => hours[hour].percent;
+    const gradient = `linear-gradient(to right, ${NIGHT} ${at(5)}%, ${DAY} ${at(7)}%, ${DAY} ${at(17)}%, ${NIGHT} ${at(19)}%)`;
+
+    return { start, maxMinutes, hours, gradient };
+}

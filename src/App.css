@@ -71,7 +71,7 @@ body {
 }
 
 .zone-list {
-  max-height: 300px;
+  max-height: 360px;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -79,7 +79,7 @@ body {
 .zone-row {
   position: relative;
   box-sizing: border-box;
-  height: 100px;
+  height: 120px;
   padding: 14px 20px;
   border-bottom: 1px solid #e5e5e5;
 }
@@ -109,18 +109,168 @@ body {
 .zone-time {
   font-size: 22px;
   font-weight: 600;
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rolling digits: each character sits in a clipped slot. The old one leaves and is gone
+   by halfway; the new one arrives from the opposite side. */
+.rolling {
+  display: inline-flex;
+}
+
+.roll-slot {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.roll-in,
+.roll-out {
+  display: inline-block;
+  animation-duration: 280ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.roll-out {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.roll-in.up {
+  animation-name: roll-in-up;
+}
+
+.roll-out.up {
+  animation-name: roll-out-up;
+}
+
+.roll-in.down {
+  animation-name: roll-in-down;
+}
+
+.roll-out.down {
+  animation-name: roll-out-down;
+}
+
+@keyframes roll-out-up {
+  0% { transform: translateY(0); opacity: 1; }
+  50% { opacity: 0; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+
+@keyframes roll-in-up {
+  0% { transform: translateY(100%); opacity: 0; }
+  50% { opacity: 0.4; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes roll-out-down {
+  0% { transform: translateY(0); opacity: 1; }
+  50% { opacity: 0; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes roll-in-down {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 0.4; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roll-in {
+    animation: none;
+  }
+
+  .roll-out {
+    display: none;
+  }
 }
 
 .zone-meta {
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: #555555;
 }
 
-.zone-track {
-  margin-top: 10px;
+/* The bar and ticks are inset by half the thumb's width (8px), because the browser keeps
+   the thumb's centre that far from each end. That keeps ticks lined up with the thumb. */
+.slider {
+  position: relative;
+  height: 16px;
+  margin-top: 8px;
+}
+
+.slider-bar {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  left: 8px;
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, #3f6895 25%, #e8d39a 32%, #e8d39a 68%, #3f6895 75%);
+}
+
+.slider-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.slider-input::-webkit-slider-runnable-track {
+  height: 16px;
+  background: transparent;
+}
+
+.slider-input::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #c8c8c8;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  appearance: none;
+}
+
+.slider-input:focus-visible::-webkit-slider-thumb {
+  border-color: #1a6fb5;
+  box-shadow: 0 0 0 2px rgba(26, 111, 181, 0.35);
+}
+
+.slider-ticks {
+  position: relative;
+  height: 18px;
+  margin: 2px 8px 0;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 3px;
+  background: #999999;
+}
+
+.tick.major {
+  height: 5px;
+  background: #666666;
+}
+
+.tick-label {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  font-size: 10px;
+  color: #666666;
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 .remove {

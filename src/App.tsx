@@ -1,22 +1,43 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import type { RollDirection } from "./components/RollingText";
 import SearchResults, { resultId } from "./components/SearchResults";
 import ZoneRow from "./components/ZoneRow";
-import { buildSearchEntries, LOCAL_ZONE } from "./utils/timezones";
+import { buildSearchEntries, isKnownZone, LOCAL_ZONE, roundToStep } from "./utils/timezones";
 import "./App.css";
 
-function todayIso(): string {
-  const d = new Date();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
+const ZONES_KEY = "meetwise.zones";
+
+// Only the added zones are saved. The default zone always comes from the system,
+// so it follows the user if they change their Windows time zone.
+function loadZones(): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(ZONES_KEY) ?? "[]");
+    const added = Array.isArray(saved)
+      ? saved.filter((zone): zone is string => typeof zone === "string" && isKnownZone(zone) && zone !== LOCAL_ZONE)
+      : [];
+    return [LOCAL_ZONE, ...new Set(added)];
+  } catch {
+    return [LOCAL_ZONE];
+  }
+}
+
+// The date picker shows the selected moment's date in the user's own (system) zone.
+function localIso(moment: Date): string {
+  const month = String(moment.getMonth() + 1).padStart(2, "0");
+  const day = String(moment.getDate()).padStart(2, "0");
+  return `${moment.getFullYear()}-${month}-${day}`;
 }
 
 export default function App() {
-  const [zones, setZones] = useState<string[]>([LOCAL_ZONE]);
+  const [zones, setZones] = useState<string[]>(loadZones);
   const [search, setSearch] = useState("");
-  const [date, setDate] = useState(todayIso);
-  const [now, setNow] = useState(() => new Date());
+  // The one moment every row shows. Moving any slider or the date changes it for all rows.
+  const [moment, setMoment] = useState(() => roundToStep(new Date()));
+  // While true, the moment keeps tracking the current time. Moving a slider or the date stops it; "Now" restarts it.
+  const [following, setFollowing] = useState(true);
+  // Which way the time digits roll: up when moving forward in time, down when moving back.
+  const [direction, setDirection] = useState<RollDirection>("up");
   const popoverRef = useRef<HTMLElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -33,9 +54,17 @@ export default function App() {
     : [];
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000);
+    if (!following) return;
+    const id = setInterval(() => {
+      setDirection("up");
+      setMoment(roundToStep(new Date()));
+    }, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [following]);
+
+  useEffect(() => {
+    localStorage.setItem(ZONES_KEY, JSON.stringify(zones.slice(1)));
+  }, [zones]);
 
   useEffect(() => {
     const popover = popoverRef.current;
@@ -106,9 +135,28 @@ export default function App() {
     searchRef.current?.focus();
   }
 
+  function showMoment(next: Date) {
+    setDirection(next.getTime() >= moment.getTime() ? "up" : "down");
+    setMoment(next);
+  }
+
   function resetToNow() {
-    setDate(todayIso());
-    setNow(new Date());
+    showMoment(roundToStep(new Date()));
+    setFollowing(true);
+  }
+
+  function moveTo(next: Date) {
+    showMoment(next);
+    setFollowing(false);
+  }
+
+  // Keeps the time of day and moves to the picked date, in the user's own zone.
+  function changeDate(value: string) {
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return;
+    const next = new Date(moment);
+    next.setFullYear(year, month - 1, day);
+    moveTo(next);
   }
 
   function removeZone(zone: string) {
@@ -155,8 +203,8 @@ export default function App() {
         <input
           className="date"
           type="date"
-          value={date}
-          onChange={(e) => setDate(e.currentTarget.value)}
+          value={localIso(moment)}
+          onChange={(e) => changeDate(e.currentTarget.value)}
         />
         {searchOpen && (
           <div className="results-panel" ref={resultsRef} style={{ height: resultsHeight }}>
@@ -172,7 +220,15 @@ export default function App() {
 
       <section className="zone-list">
         {zones.map((zone, index) => (
-          <ZoneRow key={zone} zone={zone} now={now} isDefault={index === 0} onRemove={removeZone} />
+          <ZoneRow
+            key={zone}
+            zone={zone}
+            moment={moment}
+            direction={direction}
+            isDefault={index === 0}
+            onRemove={removeZone}
+            onMove={moveTo}
+          />
         ))}
         {zones.length === 1 && (
           <p className="empty">Add another time zone from the search above.</p>

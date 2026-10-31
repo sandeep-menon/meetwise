@@ -1,8 +1,9 @@
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, PhysicalPosition, Rect, WebviewWindow,
 };
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -16,16 +17,32 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app| {
+            // The check mark reflects the real setting, which the user can also change in Windows Settings.
+            let starts_with_windows = app.autolaunch().is_enabled().unwrap_or(false);
+            let autostart_item = CheckMenuItem::with_id(
+                app,
+                "autostart",
+                "Start with Windows",
+                true,
+                starts_with_windows,
+                None::<&str>,
+            )?;
             let about_item = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&about_item, &quit_item])?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[&autostart_item, &separator, &about_item, &quit_item],
+            )?;
             let _tray = TrayIconBuilder::new()
                 .icon(tauri::include_image!("icons/tray.png"))
                 .tooltip("meetwise")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "autostart" => toggle_autostart(app, &autostart_item),
                     "about" => show_about(app),
                     "quit" => app.exit(0),
                     _ => {}
@@ -111,4 +128,19 @@ fn snap_to_taskbar(window: &WebviewWindow) -> tauri::Result<()> {
     let y = work_area.position.y + work_area.size.height as i32 - size.height as i32;
 
     window.set_position(PhysicalPosition::new(x, y))
+}
+
+// Windows has already flipped the check mark when this runs, so the item's state is the user's choice.
+// If the setting can't be changed, put the check mark back so the menu never shows the wrong state.
+fn toggle_autostart(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {
+    let enable = item.is_checked().unwrap_or(false);
+    let autolaunch = app.autolaunch();
+    let result = if enable {
+        autolaunch.enable()
+    } else {
+        autolaunch.disable()
+    };
+    if result.is_err() {
+        let _ = item.set_checked(autolaunch.is_enabled().unwrap_or(false));
+    }
 }

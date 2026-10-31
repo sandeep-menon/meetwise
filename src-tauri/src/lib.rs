@@ -1,10 +1,9 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Manager, PhysicalPosition, Rect, WebviewWindow,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-use tauri_plugin_positioner::{Position, WindowExt};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -17,7 +16,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_positioner::init())
         .setup(|app| {
             let about_item = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -33,16 +31,16 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
+                        rect,
                         ..
                     } = event
                     {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.move_window(Position::TrayLeft);
+                            let _ = position_popover(&window, rect);
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
@@ -59,6 +57,9 @@ pub fn run() {
                         }
                         tauri::WindowEvent::Focused(false) => {
                             let _ = hide_target.hide();
+                        }
+                        tauri::WindowEvent::Resized(_) => {
+                            let _ = snap_to_taskbar(&hide_target);
                         }
                         _ => {}
                     }
@@ -82,4 +83,32 @@ fn show_about(app: &AppHandle) {
         .title("About meetwise")
         .kind(MessageDialogKind::Info)
         .show(|_| {});
+}
+
+fn position_popover(window: &WebviewWindow, tray_rect: Rect) -> tauri::Result<()> {
+    let scale = window.scale_factor()?;
+    let icon = tray_rect.position.to_physical::<i32>(scale);
+
+    let Some(monitor) = window.monitor_from_point(icon.x as f64, icon.y as f64)? else {
+        return Ok(());
+    };
+    let work_area = monitor.work_area();
+    let size = window.outer_size()?;
+
+    let x = (icon.x - size.width as i32).max(work_area.position.x);
+    let y = work_area.position.y + work_area.size.height as i32 - size.height as i32;
+
+    window.set_position(PhysicalPosition::new(x, y))
+}
+
+fn snap_to_taskbar(window: &WebviewWindow) -> tauri::Result<()> {
+    let Some(monitor) = window.current_monitor()? else {
+        return Ok(());
+    };
+    let work_area = monitor.work_area();
+    let size = window.outer_size()?;
+    let x = window.outer_position()?.x;
+    let y = work_area.position.y + work_area.size.height as i32 - size.height as i32;
+
+    window.set_position(PhysicalPosition::new(x, y))
 }

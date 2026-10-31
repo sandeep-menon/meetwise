@@ -1,51 +1,87 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import ZoneRow from "./components/ZoneRow";
+import { ALL_ZONES, LOCAL_ZONE } from "./timezones";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+function todayIso(): string {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+export default function App() {
+  const [zones, setZones] = useState<string[]>([LOCAL_ZONE]);
+  const [search, setSearch] = useState("");
+  const [date, setDate] = useState(todayIso);
+  const [now, setNow] = useState(() => new Date());
+  const popoverRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const popover = popoverRef.current;
+    if (!popover) return;
+
+    const observer = new ResizeObserver(() => {
+      const height = Math.ceil(popover.getBoundingClientRect().height);
+      getCurrentWindow()
+        .setSize(new LogicalSize(window.innerWidth, height))
+        .catch(console.error);
+    });
+
+    observer.observe(popover);
+    return () => observer.disconnect();
+  }, []);
+
+  function handleSearch(value: string) {
+    if (ALL_ZONES.includes(value)) {
+      setZones((current) => (current.includes(value) ? current : [...current, value]));
+      setSearch("");
+    } else {
+      setSearch(value);
+    }
+  }
+
+  function removeZone(zone: string) {
+    setZones((current) => current.filter((z) => z !== zone));
   }
 
   return (
-    <main className="container">
-      <h1>meetwise</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
+    <main className="popover" ref={popoverRef}>
+      <header className="toolbar">
         <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+          className="search"
+          list="zone-options"
+          placeholder="Add time zone or city"
+          value={search}
+          onChange={(e) => handleSearch(e.currentTarget.value)}
         />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+        <datalist id="zone-options">
+          {ALL_ZONES.map((zone) => (
+            <option key={zone} value={zone} />
+          ))}
+        </datalist>
+        <input
+          className="date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.currentTarget.value)}
+        />
+      </header>
+
+      <section className="zone-list">
+        {zones.map((zone, index) => (
+          <ZoneRow key={zone} zone={zone} now={now} isDefault={index === 0} onRemove={removeZone} />
+        ))}
+        {zones.length === 1 && (
+          <p className="empty">Add another time zone from the search above.</p>
+        )}
+      </section>
     </main>
   );
 }
-
-export default App;

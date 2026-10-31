@@ -1,7 +1,9 @@
 use tauri::{
+    menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    AppHandle, Manager,
 };
+use tauri_plugin_dialog:: {DialogExt, MessageDialogKind};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -13,10 +15,21 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            let about_item = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&about_item, &quit_item])?;
             let _tray = TrayIconBuilder::new()
                 .icon(tauri::include_image!("icons/tray.png"))
                 .tooltip("meetwise")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "about" => show_about(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
@@ -46,4 +59,17 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn show_about(app: &AppHandle) {
+    let pkg: serde_json::Value = serde_json::from_str(include_str!("../../package.json"))
+        .expect("package.json is valid JSON");
+    let version = pkg["version"].as_str().unwrap_or("unknown");
+    let author = pkg["author"].as_str().unwrap_or("unknown");
+
+    app.dialog()
+        .message(format!("meetwise\nVersion {version}\nBy {author}"))
+        .title("About meetwise")
+        .kind(MessageDialogKind::Info)
+        .show(|_| {});
 }

@@ -2,6 +2,7 @@
   "name": "meetwise",
   "private": false,
   "version": "0.1.0",
+  "author": "Sandeep Menon",
   "type": "module",
   "scripts": {
     "dev": "vite",

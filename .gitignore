@@ -25,3 +25,7 @@ dist-ssr
 
 CLAUDE.md
 docs/
+
+# MSIX staging folder and built packages
+msix/
+*.msix

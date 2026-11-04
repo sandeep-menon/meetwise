@@ -18,8 +18,14 @@ pub fn run() {
     tauri::Builder::default()
         // Must be the first plugin: a second copy of the app exits here, before anything else sets up.
         // The callback runs in the copy that's already running.
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
-            notify("meetwise is already running", TRAY_HINT);
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // This runs while Windows is still delivering the second copy's message, and COM refuses
+            // outgoing calls (like showing a toast) until that returns. run_on_main_thread runs at once
+            // when called from the main thread, so post from another thread to queue it for afterwards.
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let _ = app.run_on_main_thread(|| notify("meetwise is already running", TRAY_HINT));
+            });
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(
@@ -105,10 +111,12 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-// A missing toast should never stop the app, so errors are ignored.
+// A missing toast should never stop the app, so errors are only logged (visible in dev, which has a console).
 fn notify(title: &str, body: &str) {
     #[cfg(windows)]
-    let _ = toast::show(title, body);
+    if let Err(error) = toast::show(title, body) {
+        eprintln!("toast failed: {error}");
+    }
 }
 
 fn show_about(app: &AppHandle) {

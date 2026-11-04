@@ -37,7 +37,7 @@ pub fn run() {
                 &[&autostart_item, &separator, &about_item, &quit_item],
             )?;
             let _tray = TrayIconBuilder::new()
-                .icon(tauri::include_image!("icons/tray.png"))
+                .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("meetwise")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)

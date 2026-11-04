@@ -9,9 +9,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "msix:stage": "npm run tauri -- build --no-bundle && (if not exist msix mkdir msix) && copy /Y src-tauri\\target\\release\\meetwise.exe msix\\ >nul",
+    "msix:stage": "npm run tauri -- build --no-bundle && (if not exist msix\\upload mkdir msix\\upload) && copy /Y src-tauri\\target\\release\\meetwise.exe msix\\upload\\ >nul",
     "msix:run": "npm run msix:stage && powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\msix-run.ps1",
-    "msix:pack": "npm run msix:stage && winapp pack .\\msix --no-sign"
+    "msix:pack": "npm run msix:stage && winapp pack .\\msix\\upload --no-sign"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

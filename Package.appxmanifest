@@ -17,8 +17,8 @@
     Version="1.0.0.0" />
 
   <Properties>
-    <DisplayName>SandeepMenon.meetwise</DisplayName>
-    <PublisherDisplayName>0C3FAF3A-A197-4C76-AACA-16C2BB4A2D42</PublisherDisplayName>
+    <DisplayName>meetwise</DisplayName>
+    <PublisherDisplayName>Sandeep Menon</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <uap10:PackageIntegrity>
       <uap10:Content Enforcement="on"/>
@@ -34,11 +34,11 @@
   </Resources>
 
   <Applications>
-    <Application Id="sandeepMenon.meetwise"
-      Executable="$targetnametoken$.exe"
+    <Application Id="meetwise"
+      Executable="meetwise.exe"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="SandeepMenon.meetwise"
+        DisplayName="meetwise"
         Description="Find a meeting time across time zones, right from your tray."
         BackgroundColor="transparent"
         Square150x150Logo="Assets\MedTile.png"

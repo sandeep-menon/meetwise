@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "msix:stage": "npm run tauri -- build --no-bundle && (if not exist msix mkdir msix) && copy /Y src-tauri\\target\\release\\meetwise.exe msix\\ >nul",
-    "msix:run": "npm run msix:stage && winapp run .\\msix",
+    "msix:run": "npm run msix:stage && powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\msix-run.ps1",
     "msix:pack": "npm run msix:stage && winapp pack .\\msix --no-sign"
   },
   "dependencies": {

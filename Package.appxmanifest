@@ -14,7 +14,8 @@
   <Identity
     Name="SandeepMenon.meetwise"
     Publisher="CN=0C3FAF3A-A197-4C76-AACA-16C2BB4A2D42"
-    Version="1.0.0.0" />
+    Version="1.0.0.0"
+    ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>meetwise</DisplayName>

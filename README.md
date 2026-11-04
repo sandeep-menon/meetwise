@@ -1,7 +1,13 @@
-# Tauri + React + Typescript
+# meetwise
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Find a meeting time across time zones, right from your tray.
 
-## Recommended IDE Setup
+A Windows system tray app built with Tauri 2, React and TypeScript, distributed through the Microsoft Store.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+Lightweight and fast: it uses the WebView2 runtime that ships with Windows instead of bundling a browser, sits idle in the tray, and opens instantly when you need it. No account, no network, nothing stored except the time zones you add.
+
+## Development
+
+- `npm install`
+- `npm run tauri dev` — run the app with hot reload
+- `npm run tauri build` — production build

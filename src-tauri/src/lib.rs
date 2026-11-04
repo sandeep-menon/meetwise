@@ -6,21 +6,34 @@ use tauri::{
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+#[cfg(windows)]
+mod toast;
+
+// Passed by the "Start with Windows" entry, so a sign-in launch can stay quiet.
+const AUTOSTART_ARG: &str = "--autostart";
+const TRAY_HINT: &str = "Click its icon in the tray to use it. If you don't see it, check under the ^ arrow.";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+        // Must be the first plugin: a second copy of the app exits here, before anything else sets up.
+        // The callback runs in the copy that's already running.
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+            notify("meetwise is already running", TRAY_HINT);
+        }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .args([AUTOSTART_ARG])
+                .build(),
+        )
         .setup(|app| {
             // The check mark reflects the real setting, which the user can also change in Windows Settings.
             let starts_with_windows = app.autolaunch().is_enabled().unwrap_or(false);
+            if starts_with_windows {
+                // Rewrites the entry so it has the current exe path and the --autostart argument.
+                let _ = app.autolaunch().enable();
+            }
             let autostart_item = CheckMenuItem::with_id(
                 app,
                 "autostart",
@@ -82,11 +95,20 @@ pub fn run() {
                     }
                 });
             }
+            // Started by the user (not at sign-in): there's no window, so say where the app went.
+            if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+                notify("meetwise is running in your tray", TRAY_HINT);
+            }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+// A missing toast should never stop the app, so errors are ignored.
+fn notify(title: &str, body: &str) {
+    #[cfg(windows)]
+    let _ = toast::show(title, body);
 }
 
 fn show_about(app: &AppHandle) {
@@ -96,7 +118,7 @@ fn show_about(app: &AppHandle) {
     let author = pkg["author"].as_str().unwrap_or("unknown");
 
     app.dialog()
-        .message(format!("meetwise\nVersion {version}\n© 2026 {author}"))
+        .message(format!("meetwise\n\nFind a meeting time across time zones, right from your tray.\n\nVersion {version}\n© 2026 {author}"))
         .title("About meetwise")
         .kind(MessageDialogKind::Info)
         .show(|_| {});

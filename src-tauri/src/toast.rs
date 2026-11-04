@@ -2,18 +2,12 @@ use windows::{
     core::{Result, HSTRING},
     Data::Xml::Dom::XmlDocument,
     UI::Notifications::{ToastNotification, ToastNotificationManager},
-    Win32::{Foundation::APPMODEL_ERROR_NO_PACKAGE, Storage::Packaging::Appx::GetCurrentPackageFullName},
 };
+
+use crate::windows_app::is_packaged;
 
 // Unpackaged builds (dev, MSI) have no app identity of their own, so their toasts borrow PowerShell's.
 const POWERSHELL_APP_ID: &str = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe";
-
-/// True when running from an MSIX package, which gives the app its own identity (name and icon on toasts).
-pub fn is_packaged() -> bool {
-    let mut length = 0;
-    // With a zero-length buffer this only reports whether a package exists.
-    unsafe { GetCurrentPackageFullName(&mut length, None) != APPMODEL_ERROR_NO_PACKAGE }
-}
 
 /// Shows a Windows toast. `title` and `body` go into XML unescaped, so they must not contain `&` or `<`.
 pub fn show(title: &str, body: &str) -> Result<()> {

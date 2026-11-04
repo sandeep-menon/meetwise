@@ -8,8 +8,10 @@ $manifest = "$layout\appxmanifest.xml"
 Get-Process meetwise -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill(); $_.WaitForExit() }
 
 $installed = Get-AppxPackage SandeepMenon.meetwise
+# Plain .NET reads: launched from PowerShell 7, this Windows PowerShell inherits a module path
+# that can hide its own Utility cmdlets (Get-FileHash and friends).
 $manifestChanged = -not (Test-Path $manifest) -or
-    (Get-FileHash Package.appxmanifest).Hash -ne (Get-FileHash $manifest).Hash
+    [IO.File]::ReadAllText("$PWD\Package.appxmanifest") -ne [IO.File]::ReadAllText("$PWD\$manifest")
 
 # A registered loose package runs straight from this folder, so new files need no re-registration.
 New-Item -ItemType Directory -Force $layout | Out-Null

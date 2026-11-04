@@ -46,6 +46,13 @@
         Square44x44Logo="Assets\AppList.png">
         <uap:DefaultTile Wide310x150Logo="Assets\WideTile.png" />
       </uap:VisualElements>
+      <Extensions>
+        <!-- Lets meetwise run at sign-in. Off until the user turns it on (tray menu or Settings > Apps > Startup).
+             TaskId must match STARTUP_TASK_ID in src-tauri/src/windows_app.rs. -->
+        <desktop:Extension Category="windows.startupTask" Executable="meetwise.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="meetwiseStartup" Enabled="false" DisplayName="meetwise" />
+        </desktop:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

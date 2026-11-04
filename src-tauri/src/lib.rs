@@ -8,8 +8,11 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 #[cfg(windows)]
 mod toast;
+#[cfg(windows)]
+mod windows_app;
 
-// Passed by the "Start with Windows" entry, so a sign-in launch can stay quiet.
+// Unpackaged builds only: passed by the "Start with Windows" registry entry, so a sign-in launch can stay quiet.
+// Inside the MSIX, the manifest's startup task does this job instead.
 const AUTOSTART_ARG: &str = "--autostart";
 const TRAY_HINT: &str = "Click its icon in the tray to use it. If you don't see it, check under the ^ arrow.";
 
@@ -35,9 +38,9 @@ pub fn run() {
         )
         .setup(|app| {
             // The check mark reflects the real setting, which the user can also change in Windows Settings.
-            let starts_with_windows = app.autolaunch().is_enabled().unwrap_or(false);
-            if starts_with_windows {
-                // Rewrites the entry so it has the current exe path and the --autostart argument.
+            let starts_with_windows = startup_enabled(app.handle());
+            if starts_with_windows && !is_packaged() {
+                // Rewrites the registry entry so it has the current exe path and the --autostart argument.
                 let _ = app.autolaunch().enable();
             }
             let autostart_item = CheckMenuItem::with_id(
@@ -61,7 +64,7 @@ pub fn run() {
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "autostart" => toggle_autostart(app, &autostart_item),
+                    "autostart" => toggle_startup(app, &autostart_item),
                     "about" => show_about(app),
                     "quit" => app.exit(0),
                     _ => {}
@@ -102,7 +105,7 @@ pub fn run() {
                 });
             }
             // Started by the user (not at sign-in): there's no window, so say where the app went.
-            if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+            if !launched_at_sign_in() {
                 notify("meetwise is running in your tray", TRAY_HINT);
             }
             Ok(())
@@ -160,17 +163,51 @@ fn snap_to_taskbar(window: &WebviewWindow) -> tauri::Result<()> {
     window.set_position(PhysicalPosition::new(x, y))
 }
 
-// Windows has already flipped the check mark when this runs, so the item's state is the user's choice.
-// If the setting can't be changed, put the check mark back so the menu never shows the wrong state.
-fn toggle_autostart(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {
-    let enable = item.is_checked().unwrap_or(false);
+// "Start with Windows" has two mechanisms: inside the MSIX, the manifest's startup task (Windows owns
+// the switch); unpackaged (dev, MSI), a registry entry written by tauri-plugin-autostart.
+
+fn is_packaged() -> bool {
+    #[cfg(windows)]
+    return windows_app::is_packaged();
+    #[cfg(not(windows))]
+    return false;
+}
+
+fn startup_enabled(app: &AppHandle) -> bool {
+    #[cfg(windows)]
+    if windows_app::is_packaged() {
+        return windows_app::startup_task_enabled();
+    }
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Returns whether the app starts with Windows afterwards, which may not be what was asked for.
+fn set_startup(app: &AppHandle, enable: bool) -> bool {
+    #[cfg(windows)]
+    if windows_app::is_packaged() {
+        return windows_app::set_startup_task(enable).unwrap_or_else(|_| windows_app::startup_task_enabled());
+    }
     let autolaunch = app.autolaunch();
-    let result = if enable {
-        autolaunch.enable()
-    } else {
-        autolaunch.disable()
-    };
-    if result.is_err() {
-        let _ = item.set_checked(autolaunch.is_enabled().unwrap_or(false));
+    let _ = if enable { autolaunch.enable() } else { autolaunch.disable() };
+    autolaunch.is_enabled().unwrap_or(false)
+}
+
+fn launched_at_sign_in() -> bool {
+    #[cfg(windows)]
+    if windows_app::is_packaged() {
+        return windows_app::launched_by_startup_task();
+    }
+    std::env::args().any(|arg| arg == AUTOSTART_ARG)
+}
+
+// Windows has already flipped the check mark when this runs, so the item's state is the user's choice.
+// The check mark is then set to the real state, so the menu never shows the wrong one.
+fn toggle_startup(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {
+    let enable = item.is_checked().unwrap_or(false);
+    let enabled = set_startup(app, enable);
+    let _ = item.set_checked(enabled);
+    if enable && !enabled {
+        // In the MSIX, a user who turned meetwise off in Settings must turn it back on there.
+        notify("meetwise can't turn this on itself", "Turn meetwise on in Settings > Apps > Startup.");
     }
 }
